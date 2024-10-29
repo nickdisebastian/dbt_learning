@@ -6,9 +6,9 @@ WITH paid_orders as (select Orders.ID as order_id,
         p.payment_finalized_date,
         C.FIRST_NAME    as customer_first_name,
             C.LAST_NAME as customer_last_name
-    FROM {{ source('jaffle_shop', 'orders') }}as Orders
+    FROM {{ source('jaffle_shop', 'orders') }} as Orders
     left join (select ORDERID as order_id, max(CREATED) as payment_finalized_date, sum(AMOUNT) / 100.0 as total_amount_paid
-from {{ source('stripe', 'payments') }}
+from {{ source('stripe', 'payment') }}
 where STATUS <> 'fail'
 group by 1) p ON orders.ID = p.order_id
 left join {{ source('jaffle_shop', 'customers') }} C on orders.USER_ID = C.ID ),
