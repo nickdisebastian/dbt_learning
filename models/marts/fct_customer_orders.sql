@@ -1,43 +1,10 @@
---- Import CTEs
-with orders as (
-    select * from {{ ref('stg_jaffle_shop__orders') }}
-),
-
-customers as (
+with customers as (
     select * from {{ ref('stg_jaffle_shop__customers') }}
 ),
 
-payments as (
-    select * from {{ ref('stg_stripe__payments') }}
-),
-
--- transform subqueries to intermediate CTEs
-completed_orders as (
-select
-    order_id,
-    max(payment_created_at) as payment_finalized_date,
-    sum(payment_amount) / 100.0 as total_amount_paid
-from payments
-where payment_status <> 'fail'
-group by 1
-),
-
--- legacy code
 paid_orders as (
-    select
-        orders.order_id,
-        orders.customer_id,
-        orders.order_placed_at,
-        orders.order_status,
-        completed_orders.total_amount_paid,
-        completed_orders.payment_finalized_date,
-        customers.customer_first_name,
-        customers.customer_last_name
-    from orders
-    left join completed_orders on orders.order_id = completed_orders.order_id
-    left join customers on orders.customer_id = customers.customer_id
+    select * from {{ ref('int_orders') }}
 ),
-
 
 final as (
     select
@@ -47,8 +14,8 @@ final as (
         paid_orders.order_status,
         paid_orders.total_amount_paid,
         paid_orders.payment_finalized_date,
-        paid_orders.customer_first_name,
-        paid_orders.customer_last_name,
+        customers.customer_first_name,
+        customers.customer_last_name,
         row_number() over (order by paid_orders.order_id) as transaction_seq,
         row_number() over (partition by paid_orders.customer_id order by paid_orders.order_id) as customer_sales_seq,
         case 
@@ -65,6 +32,7 @@ final as (
             partition by paid_orders.customer_id
             order by paid_orders.order_placed_at
             ) as fdos
-from paid_orders)
+from paid_orders
+left join customers on paid_orders.customer_id = customers.customer_id)
 
 select * from final 
