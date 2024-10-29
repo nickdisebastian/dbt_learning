@@ -1,5 +1,4 @@
 --- Import CTEs
-
 with orders as (
     select * from {{ source('jaffle_shop', 'orders') }}
 ),
@@ -12,45 +11,46 @@ paymemnts as (
     select * from {{ source('stripe', 'payments') }}
 ),
 
+-- transform subqueries to intermediate CTEs
+completed_orders as (
+select
+    orderid as order_id,
+    max(created) as payment_finalized_date,
+    sum(amount) / 100.0 as total_amount_paid
+from paymemnts
+where status <> 'fail'
+group by 1
+),
 
 -- legacy code
-    paid_orders as (
-        select
-            orders.id as order_id,
-            orders.user_id as customer_id,
-            orders.order_date as order_placed_at,
-            orders.status as order_status,
-            p.total_amount_paid,
-            p.payment_finalized_date,
-            c.first_name as customer_first_name,
-            c.last_name as customer_last_name
-        from orders
-        left join
-            (
-                select
-                    orderid as order_id,
-                    max(created) as payment_finalized_date,
-                    sum(amount) / 100.0 as total_amount_paid
-                from paymemnts
-                where status <> 'fail'
-                group by 1
-            ) p
-            on orders.id = p.order_id
-        left join customers c on orders.user_id = c.id
-    ),
+paid_orders as (
+    select
+        orders.id as order_id,
+        orders.user_id as customer_id,
+        orders.order_date as order_placed_at,
+        orders.status as order_status,
+        p.total_amount_paid,
+        p.payment_finalized_date,
+        c.first_name as customer_first_name,
+        c.last_name as customer_last_name
+    from orders
+    left join completed_orders p on orders.id = p.order_id
+    left join customers c on orders.user_id = c.id
+),
 
-    customer_orders as (
-        select
-            c.id as customer_id,
-            min(order_date) as first_order_date,
-            max(order_date) as most_recent_order_date,
-            count(orders.id) as number_of_orders
-        from customers c
-        left join
-            orders on orders.user_id = c.id
-        group by 1
-    )
+customer_orders as (
+    select
+        c.id as customer_id,
+        min(order_date) as first_order_date,
+        max(order_date) as most_recent_order_date,
+        count(orders.id) as number_of_orders
+    from customers c
+    left join
+        orders on orders.user_id = c.id
+    group by 1
+),
 
+final as (
 select
     p.*,
     row_number() over (order by p.order_id) as transaction_seq,
@@ -76,4 +76,6 @@ left outer join
         order by p.order_id
     ) x
     on x.order_id = p.order_id
-order by order_id
+order by order_id)
+
+select * from final 
