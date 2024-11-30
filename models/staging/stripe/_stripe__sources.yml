@@ -1,14 +1,8 @@
 version: 2
 
 sources:
-    - name: stripe
-      description: This is a replica of the Postgres database used by our payment processing platform, Stripe
-      database: raw
-      schema: stripe
-      tables:
-          - name: payment
-            description: One record per payment per order
-            loaded_at_field: _batched_at
-            freshness:
-              warn_after: {count: 12, period: hour}
-              error_after: {count: 24, period: hour}
+  - name: stripe
+    database: raw
+    tables:
+      - name: payments
+        identifier: payment

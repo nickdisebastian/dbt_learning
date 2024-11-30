@@ -1,8 +1,15 @@
-select 
-    ID as PAYMENT_ID,
-    ORDERID as ORDER_ID, 
-    PAYMENTMETHOD as PAYMENT_METHOD, 
-    STATUS, 
-    round(AMOUNT/100,2) as AMOUNT, 
-    CREATED
-from {{ source('stripe', 'payment') }}
+with source as (
+    select * from {{ source('stripe', 'payments') }}
+),
+
+transformed as (
+  select
+    id as payment_id,
+    orderid as order_id,
+    created as payment_created_at,
+    status as payment_status,
+    round(amount / 100.0, 2) as payment_amount
+  from source
+)
+
+select * from transformed
